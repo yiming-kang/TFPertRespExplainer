@@ -72,18 +72,27 @@ def main(argv):
     is_regressor = args.is_regressor
 
     ## Construct input feature matrix and labels
-    logger.info('==> Constructing labels and feature matrix <==')
-    feat_mtx, features, label_df = construct_fixed_input(filepath_dict, feat_info_dict)
-    label_df = label_df.abs() if is_regressor else binarize_label(label_df, MIN_RESP_LFC)
-    logger.info('Label dim={}, feat mtx dim={}'.format(label_df.shape, feat_mtx.shape))
+    # TODO: delete data pickling
+    # logger.info('==> Constructing labels and feature matrix <==')
+    # feat_mtx, features, label_df = construct_fixed_input(filepath_dict, feat_info_dict)
+    # label_df = label_df.abs() if is_regressor else binarize_label(label_df, MIN_RESP_LFC)
+    # logger.info('Label dim={}, feat mtx dim={}'.format(label_df.shape, feat_mtx.shape))
+
+    # TODO: delete data pickling
+    import pickle
+    # with open('tmp/YDR034C.pkl', 'wb') as f: 
+    #     pickle.dump([feat_mtx, features, label_df], f)
+    with open('tmp/YDR034C.pkl', 'rb') as f: 
+        feat_mtx, features, label_df = pickle.load(f)
 
     ## Model prediction and explanation
     tfpr_explainer = TFPRExplainer(feat_mtx, features, label_df)
     logger.info('==> Cross validating response prediction model <==')
     tfpr_explainer.cross_validate(is_regressor)
 
-    logger.info('==> Analyzing feature contributions <==')
-    tfpr_explainer.explain()
+    # TODO: turn back on SHAP explainer
+    # logger.info('==> Analyzing feature contributions <==')
+    # tfpr_explainer.explain()
     
     logger.info('==> Saving output data <==')
     child_dir = feat_info_dict['tf']

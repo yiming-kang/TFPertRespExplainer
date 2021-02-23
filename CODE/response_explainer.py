@@ -89,35 +89,33 @@ class TFPRExplainer:
     def save(self, dirpath):
         """Save output data.
         """
-        pd.concat(self.cv_results['preds']).to_csv(
-            '{}/preds.csv.gz'.format(dirpath), 
-            index=False, compression='gzip')
+        # TODO: turn back on SHAP explainer
+        # pd.concat(self.cv_results['preds']).to_csv(
+        #     '{}/preds.csv.gz'.format(dirpath), 
+        #     index=False, compression='gzip')
 
         pd.concat(self.cv_results['stats']).to_csv(
             '{}/stats.csv.gz'.format(dirpath), 
             index=False, compression='gzip')
 
-        np.savetxt(
-            '{}/feats.csv.gz'.format(dirpath), np.array(self.feats),
-            fmt='%s', delimiter=',')
+        # np.savetxt(
+        #     '{}/feats.csv.gz'.format(dirpath), np.array(self.feats),
+        #     fmt='%s', delimiter=',')
 
-        np.savetxt(
-            '{}/genes.csv.gz'.format(dirpath), self.genes,
-            fmt='%s', delimiter=',')
+        # np.savetxt(
+        #     '{}/genes.csv.gz'.format(dirpath), self.genes,
+        #     fmt='%s', delimiter=',')
     
-        np.savetxt(
-            '{}/feat_mtx.csv.gz'.format(dirpath), self.X,
-            fmt='%.8f', delimiter=',')
-    
-        # for k, model in enumerate(self.cv_results['models']):
-        #     pickle.dump(model, open('{}/cv{}.pkl'.format(dirpath, k), 'wb'))
+        # np.savetxt(
+        #     '{}/feat_mtx.csv.gz'.format(dirpath), self.X,
+        #     fmt='%.8f', delimiter=',')
 
-        for k, df in enumerate(self.shap_vals):
-            df['cv'] = k
-            self.shap_vals[k] = df
-        pd.concat(self.shap_vals).to_csv(
-            '{}/feat_shap_wbg.csv.gz'.format(dirpath),
-            index=False, compression='gzip')
+        # for k, df in enumerate(self.shap_vals):
+        #     df['cv'] = k
+        #     self.shap_vals[k] = df
+        # pd.concat(self.shap_vals).to_csv(
+        #     '{}/feat_shap_wbg.csv.gz'.format(dirpath),
+        #     index=False, compression='gzip')
 
 
 def train_and_predict(k, D_tr, D_te, is_regressor):
@@ -163,10 +161,24 @@ def train_and_predict(k, D_tr, D_te, is_regressor):
 def train_classifier(X, y):
     """Train a XGBoost classifier.
     """
+    # Tuning Notes:
+    # - Resonable class weight helps (not as high as neg/pos ratio)
+    # - Gamma helps as regularizer
+    # - Number of features per tree helps  
+    # - Subsample helps
+
+    # neg_pos_ratio = sum(y == 0) / sum(y == 1)
+    # neg_pos_ratio = 5
+    neg_pos_ratio = 1
+
     model = xgb.XGBClassifier(
         n_estimators=500,
         learning_rate=.01,
         booster='gbtree',
+        scale_pos_weight=neg_pos_ratio,
+        gamma=5,
+        colsample_bytree=.8,
+        subsample=.8,
         n_jobs=-1,
         random_state=RAND_NUM
     )
