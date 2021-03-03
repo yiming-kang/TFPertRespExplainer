@@ -169,4 +169,55 @@ def calculate_shap_net_influence(df):
             'tf': tf, 'acc': subdf['acc'].iloc[0], 'shap_diff': shap_diff
             }), ignore_index=True)
     return df2
+
+
+def calculate_tf_binding_shap(resp_df, tf_dir, tf_name, bound_targets, tfb_params):
+    shap_df = pd.read_csv('{}/feat_shap_wbg.csv.gz'.format(tf_dir))
+    preds_df = pd.read_csv('{}/preds.csv.gz'.format(tf_dir))
     
+    feats_df = pd.read_csv('{}/feats.csv.gz'.format(tf_dir), names=['feat_type', 'feat_name', 'start', 'end'])
+    feat_mtx = np.loadtxt('{}/feat_mtx.csv.gz'.format(tf_dir), delimiter=',')
+    genes = np.loadtxt('{}/genes.csv.gz'.format(tf_dir), dtype=str)
+    feat_mtx = pd.DataFrame(data=feat_mtx, index=genes)
+    
+    annot_genes_df = annotate_resp_type(resp_df, feat_mtx, feats_df, tf_name, bound_targets=bound_targets)
+    
+    ## Pare down to the TF's binding feature
+    feat_type, feat_shift, bin_width = tfb_params
+    feat_row = feats_df[(feats_df['feat_type'] == feat_type) & (feats_df['feat_name'] == tf_name)].iloc[0]
+    
+    comb_vals_df = pd.DataFrame()
+    for feat_idx in range(feat_row['start'], feat_row['end']):
+        comb_vals = preds_df.merge(shap_df.loc[shap_df['feat_idx'] == feat_idx], on='gene')
+        comb_vals = comb_vals.merge(feat_mtx[feat_idx], left_on='gene', right_index=True)
+        comb_vals = comb_vals.rename(columns={'feat': 'shap', feat_idx: 'input'})
+        comb_vals['label'] = comb_vals['label'].astype(int).astype(str)
+        comb_vals['coord'] = (feat_idx - feat_row['start']) * bin_width - feat_shift
+        comb_vals = comb_vals.merge(annot_genes_df, how='left', left_on='gene', right_index=True)
+        comb_vals_df = comb_vals_df.append(comb_vals, ignore_index=True)
+    return comb_vals_df
+
+        
+def get_callingcards_bound_targets(cc_dir, tf_name, gene_list):
+    cc_thresh = 10**-3
+    tfb_sig = pd.read_csv('{}/{}.sig_prom.txt'.format(cc_dir, tf_name), sep='\t')
+    bound_targets = tfb_sig.loc[tfb_sig['Poisson pvalue'] < cc_thresh, 'Systematic Name']
+    return np.intersect1d(bound_targets, gene_list)
+
+
+def annotate_resp_type(resp_df, feat_mtx, feats_df, tf_name, bound_targets=None):
+    tfb_idx = feats_df.loc[(feats_df['feat_type'] == 'tf_binding') & (feats_df['feat_name'] == tf_name), ['start', 'end']].iloc[0]
+    tfb_sum = feat_mtx[range(tfb_idx['start'], tfb_idx['end'])].sum(axis=1).to_frame().rename(columns={0: 'tfb'})
+    
+    resp_df = resp_df[tf_name].to_frame().rename(columns={tf_name: 'resp'})
+    resp_df = resp_df.merge(tfb_sum, left_on='GeneName', right_index=True)
+    
+    resp_df['is_bound'] = 'Unbound'
+    if bound_targets is None:
+        resp_df.loc[resp_df['tfb'] > 0, 'is_bound'] = 'Bound'
+    else:
+        resp_df.loc[bound_targets, 'is_bound'] = 'Bound'
+
+    resp_df['resp_dir'] = 'Non-responsive'
+    resp_df.loc[resp_df['resp'] != 0, 'resp_dir'] = 'Responsive'
+    return resp_df[['is_bound', 'resp_dir']]
