@@ -49,6 +49,11 @@ class TFPRExplainer:
                     n_splits=self.k_folds, shuffle=True, random_state=RAND_NUM)
 
             for k, (tr_idx, te_idx) in enumerate(kfolds.split(self.X, self.y)):
+
+                # TODO: only run on the first fold
+                if k != 3:
+                    continue
+
                 y_tr, y_te = self.y[tr_idx], self.y[te_idx]
                 X_tr, X_te = self.X[tr_idx], self.X[te_idx]
                 X_tr, X_te = standardize_feat_mtx(X_tr, X_te, 'zscore')
@@ -171,17 +176,33 @@ def train_classifier(X, y):
     # neg_pos_ratio = 5
     neg_pos_ratio = 1
 
+    # model = xgb.XGBClassifier(
+    #     n_estimators=500,
+    #     learning_rate=.01,
+    #     booster='gbtree',
+    #     scale_pos_weight=neg_pos_ratio,
+    #     gamma=5,
+    #     colsample_bytree=.8,
+    #     subsample=.8,
+    #     n_jobs=-1,
+    #     random_state=RAND_NUM
+    # )
+
+    opt_hps = tune_hyparams(X, y)
+    print('@----- Opitmized hyparams -----@\n', opt_hps, '\n')
+
     model = xgb.XGBClassifier(
         n_estimators=500,
-        learning_rate=.01,
         booster='gbtree',
         scale_pos_weight=neg_pos_ratio,
-        gamma=5,
-        colsample_bytree=.8,
-        subsample=.8,
         n_jobs=-1,
-        random_state=RAND_NUM
+        random_state=RAND_NUM,
+        learning_rate=opt_hps['learning_rate'],
+        gamma=opt_hps['gamma'],
+        colsample_bytree=opt_hps['colsample_bytree'],
+        subsample=opt_hps['subsample']
     )
+
     model.fit(X, y)
     return model
 
@@ -199,6 +220,49 @@ def train_regressor(X, y):
     )
     model.fit(X, y)
     return model
+
+
+def tune_hyparams(X, y):
+    """Returns a dictionary of optimized hyperparameters.
+    """
+    from sklearn.model_selection import cross_val_predict
+    from hyperopt import fmin, tpe, hp, STATUS_OK, Trials
+
+    ## Define objective for optimization
+    def model_objective(params):
+        model = xgb.XGBClassifier(
+            n_estimators=500,
+            booster='gbtree',
+            scale_pos_weight=1,
+            n_jobs=-1,
+            **params)
+        y_pred = cross_val_predict(model, X, y, cv=5, n_jobs=-1)
+        loss = -average_precision_score(y, y_pred)  ## AuPRC as loss
+        return {'loss': loss, 'status': STATUS_OK}
+
+    ## Define search space
+    hyparams = {
+        # 'learning_rate': hp.loguniform('learning_rate', .001, .1),
+        'learning_rate': hp.uniform('learning_rate', .005, .02),
+        'gamma': hp.uniform('gamma', 0, 10),
+        'colsample_bytree': hp.uniform('colsample_bytree', .5, 1.),
+        'subsample': hp.uniform('subsample', .5, 1.)
+    }
+
+    # eps = .00001
+    # hyparams = {
+    #     'learning_rate': hp.uniform('learning_rate', .01 - eps, .01 + eps),
+    #     'gamma': hp.uniform('gamma', 5 - eps, 5 + eps),
+    #     'colsample_bytree': hp.uniform('colsample_bytree', .8 - eps, .8 + eps),
+    #     'subsample': hp.uniform('subsample', .8 - eps, .8 + eps)
+    # }
+    space = hp.choice('model', [hyparams])
+
+    ## Optimize hyparams
+    trials = Trials()
+    opt_hps = fmin(model_objective, space, algo=tpe.suggest, max_evals=5, trials=trials)
+    print(trials.trials)
+    return opt_hps
 
 
 def calculate_tree_shap(model, X, genes, X_bg):

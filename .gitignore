@@ -9,3 +9,4 @@ OUTPUT/*
 .*DS_Store
 .ipynb_checkpoints/
 download.ipynb
+tmp/

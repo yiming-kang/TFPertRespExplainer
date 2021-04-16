@@ -72,7 +72,7 @@ def main(argv):
     is_regressor = args.is_regressor
 
     ## Construct input feature matrix and labels
-    # TODO: delete data pickling
+    # # TODO: delete data pickling
     # logger.info('==> Constructing labels and feature matrix <==')
     # feat_mtx, features, label_df = construct_fixed_input(filepath_dict, feat_info_dict)
     # label_df = label_df.abs() if is_regressor else binarize_label(label_df, MIN_RESP_LFC)
