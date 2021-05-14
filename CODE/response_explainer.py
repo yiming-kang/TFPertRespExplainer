@@ -25,7 +25,6 @@ np.random.seed(RAND_NUM)
 MAX_RECURSION = int(config['DEFAULT']['max_recursion'])
 sys.setrecursionlimit(MAX_RECURSION)
 MAX_CV_FOLDS = int(config['DEFAULT']['max_cv_folds'])
-BG_GENE_NUM = 1000
 
 
 class TFPRExplainer:
@@ -99,13 +98,11 @@ class TFPRExplainer:
                 X_tr = np.hstack([tf_X_tr, np.vstack([nontf_X for i in range(n_tfs_tr)])])
                 X_te = np.hstack([tf_X_te, np.vstack([nontf_X for i in range(n_tfs_te)])])
 
-                bg_idx = np.random.choice(
-                    range(X_tr.shape[0]), BG_GENE_NUM, replace=False)
                 mp_results[k] = pool.apply_async(
                     calculate_tree_shap,
                     args=(
                         self.cv_results['models'][k], 
-                        X_te, te_tg_pairs, X_tr[bg_idx],))
+                        X_te, te_tg_pairs,))
             
             self.shap_vals = [mp_results[k].get() for k in sorted(mp_results.keys())]
 
@@ -140,7 +137,7 @@ class TFPRExplainer:
             df['cv'] = k
             self.shap_vals[k] = df
         pd.concat(self.shap_vals).to_csv(
-            '{}/feat_shap_wbg.csv.gz'.format(dirpath),
+            '{}/feat_shap_treepath.csv.gz'.format(dirpath),
             index=False, compression='gzip')
 
 
@@ -217,13 +214,13 @@ def train_regressor(X, y):
     return model
 
 
-def calculate_tree_shap(model, X, genes, X_bg):
+def calculate_tree_shap(model, X, genes):
     """Calcualte SHAP values for tree-based model.
     """
     n_genes, n_feats = X.shape
     
     ## Calculate SHAP values
-    explainer = shap.TreeExplainer(model, X_bg)
+    explainer = shap.TreeExplainer(model)
     shap_mtx = explainer.shap_values(X, approximate=False, check_additivity=False)
     
     ## Convert wide to long format
