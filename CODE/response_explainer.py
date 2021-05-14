@@ -140,7 +140,7 @@ class TFPRExplainer:
             df['cv'] = k
             self.shap_vals[k] = df
         pd.concat(self.shap_vals).to_csv(
-            '{}/feat_shap_wbg.csv.gz'.format(dirpath),
+            '{}/feat_shap_prob_wbg.csv.gz'.format(dirpath),
             index=False, compression='gzip')
 
 
@@ -223,7 +223,7 @@ def calculate_tree_shap(model, X, genes, X_bg):
     n_genes, n_feats = X.shape
     
     ## Calculate SHAP values
-    explainer = shap.TreeExplainer(model, X_bg)
+    explainer = shap.TreeExplainer(model, X_bg, model_output='probability', feature_dependence='independent')
     shap_mtx = explainer.shap_values(X, approximate=False, check_additivity=False)
     
     ## Convert wide to long format
